@@ -34,13 +34,13 @@
       // style: 'std.json',
       style: 'skeleton.json',
       hash: true,
-      zoom: 16.58,
+      zoom: 16.57,
       maxZoom: 23,
       minZoom: 4,
-      center: [139.744531, 35.659981],
-      pitch: 67,
+      center: [139.743664, 35.661206],
+      pitch: 70,
       maxPitch: 85,
-      bearing: -31.2,
+      bearing: -30.4,
       hash: true,
       attributionControl: false,
     })
@@ -149,6 +149,7 @@
             data: 'https://plateau.geospatial.jp/main/data/3d-tiles/bldg/13100_tokyo/13103_minato-ku/low_resolution/tileset.json',
             opacity: 1,
             pickable: true,
+            /*
             onTileLoad: (tileHeader) => {
               //3d-tileに内包される建物の3dデータ(gltf)から任意の建物をフィルタリングしてマテリアルを上書きする
               tileHeader.content.gltf.materials.forEach(function (m) {
@@ -160,6 +161,7 @@
                 }
               });
             },
+            */
             onTileLoad: d => {
               // モデルの高さをマップ平面に合うように調整
               // 【参考】https://nagix.hatenablog.com/entry/2022/12/27/203825
