@@ -1,0 +1,203 @@
+<html>
+
+<head>
+  <title>3D都市モデル PLATEAU 2022（PMTiles）</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
+  <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+  <script src="https://unpkg.com/@loaders.gl/3d-tiles@^2.3.0/dist/dist.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <script type="text/javascript">
+    // addProtocolの設定
+    let protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol("pmtiles", protocol.tile);
+
+    // マップを初期化
+    const map = new maplibregl.Map({
+      container: 'map',
+      // style: 'std.json',
+      style: 'skeleton.json',
+      hash: true,
+      zoom: 16.58,
+      maxZoom: 23,
+      minZoom: 4,
+      center: [139.744531, 35.659981],
+      pitch: 67,
+      maxPitch: 85,
+      bearing: -31.2,
+      hash: true,
+      attributionControl: false,
+    })
+
+    // ズーム・回転
+    map.addControl(new maplibregl.NavigationControl());
+
+    // フルスクリーンモードのオンオフ
+    map.addControl(new maplibregl.FullscreenControl());
+
+    // 現在位置表示
+    map.addControl(new maplibregl.GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: false
+      },
+      fitBoundsOptions: { maxZoom: 18 },
+      trackUserLocation: true,
+      showUserLocation: true
+    }));
+
+    // スケール表示
+    map.addControl(new maplibregl.ScaleControl({
+      maxWidth: 200,
+      unit: 'metric'
+    }));
+
+    // Attributionを折りたたみ表示
+    map.addControl(new maplibregl.AttributionControl({
+      compact: true,
+      // カスタムAttributionを表示
+      customAttribution: '（<a href="https://twitter.com/shi__works" target="_blank">Twitter</a> | <a href="" target="_blank">Github</a>） '
+    }));
+
+    // 3D地形コントロール表示
+    map.addControl(
+      new maplibregl.TerrainControl({
+        source: 'gsi-terrain-rgb',
+        exaggeration: 1 // 標高を強調する倍率
+      })
+    );
+
+    // 環境光を作成
+    const ambientLight = new deck.AmbientLight({
+      color: [255, 255, 255],
+      intensity: 3.0
+    });
+
+    // 平行ライトを作成
+    const directionalLight = new deck.DirectionalLight({
+      color: [255, 255, 255],
+      intensity: 9.0,
+      direction: [0, 0, -1]
+    });
+
+    // ライティングエフェクトを作成
+    const lightingEffect = new deck.LightingEffect({ ambientLight, directionalLight });
+
+    map.on('load', () => {
+      // 標高タイルソース
+      map.addSource("gsidem-terrain-rgb", {
+        type: 'raster-dem',
+        tiles: [
+          'https://xs489works.xsrv.jp/raster-tiles/gsi/gsi-dem-terrain-rgb/{z}/{x}/{y}.png'
+        ],
+        attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank">地理院タイル(標高タイル)</a>',
+        tileSize: 256
+      });
+
+      // 標高タイルセット
+      map.setTerrain({ 'source': 'gsidem-terrain-rgb', 'exaggeration': 1 });
+
+      // PLATEAU建物（PMTiles）ソース
+      map.addSource("plateau-pmtiles", {
+        type: "vector",
+        url: "pmtiles://https://xs489works.xsrv.jp/pmtiles-data/plateau/PLATEAU_2022_LOD1.pmtiles",
+        minzoom: 16,
+        maxzoom: 16,
+        attribution: '<a href="https://www.geospatial.jp/ckan/dataset/plateau">3D都市モデルPLATEAU建物データ（国土交通省）</a>'
+      });
+
+      // PLATEAU建物（PMTiles）レイヤ
+      map.addLayer({
+        'id': 'plateau-pmtiles',
+        'source': 'plateau-pmtiles',
+        'source-layer': "PLATEAU",
+        "minzoom": 14,
+        "maxzoom": 23,
+        'type': 'fill-extrusion',
+        'paint': {
+          "fill-extrusion-color": '#FFFFFF',
+          "fill-extrusion-opacity": 0.8,
+          "fill-extrusion-height": ["get", "measuredHeight"]
+        }
+      });
+
+      // レイヤのフィルタ設定
+      map.setFilter('plateau-pmtiles', ['!=', 'id', 'bldg_cccd0c62-5b12-4b25-b177-b862f33988cb']); // 東京タワーのみ
+
+      // MapboxOverlayを使ったインターリーブ
+      const overlay = new deck.MapboxOverlay({
+        interleaved: true,
+        layers: [
+          // PLATEAU建物（3DTiles）レイヤ
+          new deck.Tile3DLayer({
+            id: 'plateau-3dtiles',
+            data: 'https://plateau.geospatial.jp/main/data/3d-tiles/bldg/13100_tokyo/13103_minato-ku/low_resolution/tileset.json',
+            opacity: 1,
+            pickable: true,
+            onTileLoad: (tileHeader) => {
+              //3d-tileに内包される建物の3dデータ(gltf)から任意の建物をフィルタリングしてマテリアルを上書きする
+              tileHeader.content.gltf.materials.forEach(function (m) {
+                //東京タワー以外のLOD2地物を非表示にする
+                //マテリアルネームは事前に調べておく
+                if (m.name != "tbfg2191") {
+                  delete m.pbrMetallicRoughness.baseColorTexture;
+                  m.pbrMetallicRoughness.baseColorFactor = [1, 1, 1, 0];
+                }
+              });
+            },
+            onTileLoad: d => {
+              // モデルの高さをマップ平面に合うように調整
+              // 【参考】https://nagix.hatenablog.com/entry/2022/12/27/203825
+              const { content } = d;
+              const buffer = content.batchTableBinary.buffer;
+              const key = content.batchTableJson;
+              const len = key._gml_id.length;
+              const zMinView = new DataView(buffer, key._zmin.byteOffset, len * 8);
+              const zMins = [];
+
+              for (let i = 0; i < len; i++) {
+                zMins.push(zMinView.getFloat64(i * 8, true));
+              }
+              zMins.sort((a, b) => a - b);
+              content.cartographicOrigin.z -= 36.5946 + zMins[Math.floor(len / 2)];
+
+              //3d-tileに内包される建物の3dデータ(gltf)から任意の建物をフィルタリングしてマテリアルを上書きする
+              // 【参考】https://gunmagisgeek.com/blog/deck-gl/7303
+              content.gltf.materials.forEach(function (m) {
+                //東京タワー以外のLOD2地物を非表示にする
+                //マテリアルネームは事前に調べておく
+                if (m.name != "tbfg2191") {
+                  delete m.pbrMetallicRoughness.baseColorTexture;
+                  m.pbrMetallicRoughness.baseColorFactor = [1, 1, 1, 0];
+                }
+              });
+            }
+          })
+        ],
+        effects: [
+          lightingEffect
+        ],
+      });
+
+      map.addControl(overlay);
+
+    });
+  </script>
+</body>
+
+</html>
