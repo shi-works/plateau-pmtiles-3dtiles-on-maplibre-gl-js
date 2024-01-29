@@ -137,7 +137,7 @@
       });
 
       // レイヤのフィルタ設定
-      map.setFilter('plateau-pmtiles', ['!=', 'id', 'bldg_cccd0c62-5b12-4b25-b177-b862f33988cb']); // 東京タワーのみ
+      map.setFilter('plateau-pmtiles', ['!=', 'id', 'bldg_cccd0c62-5b12-4b25-b177-b862f33988cb']); // 東京タワーのみ非表示
 
       // MapboxOverlayを使ったインターリーブ
       const overlay = new deck.MapboxOverlay({
@@ -149,19 +149,9 @@
             data: 'https://plateau.geospatial.jp/main/data/3d-tiles/bldg/13100_tokyo/13103_minato-ku/low_resolution/tileset.json',
             opacity: 1,
             pickable: true,
-            /*
-            onTileLoad: (tileHeader) => {
-              //3d-tileに内包される建物の3dデータ(gltf)から任意の建物をフィルタリングしてマテリアルを上書きする
-              tileHeader.content.gltf.materials.forEach(function (m) {
-                //東京タワー以外のLOD2地物を非表示にする
-                //マテリアルネームは事前に調べておく
-                if (m.name != "tbfg2191") {
-                  delete m.pbrMetallicRoughness.baseColorTexture;
-                  m.pbrMetallicRoughness.baseColorFactor = [1, 1, 1, 0];
-                }
-              });
+            onClick: async info => {
+              console.log(info);
             },
-            */
             onTileLoad: d => {
               // モデルの高さをマップ平面に合うように調整
               // 【参考】https://nagix.hatenablog.com/entry/2022/12/27/203825
@@ -184,6 +174,7 @@
                 //東京タワー以外のLOD2地物を非表示にする
                 //マテリアルネームは事前に調べておく
                 if (m.name != "tbfg2191") {
+                  // if (m.id != "bldg_cccd0c62-5b12-4b25-b177-b862f33988cb") {
                   delete m.pbrMetallicRoughness.baseColorTexture;
                   m.pbrMetallicRoughness.baseColorFactor = [1, 1, 1, 0];
                 }
